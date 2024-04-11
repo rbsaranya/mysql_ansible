@@ -2,8 +2,8 @@
 set -xv
 # Remote server details
 ssh_host="172.20.72.197"
-ssh_user="saranya.rb"
-MYSQL_ROOT_PASSWORD="SDAdbaDevops"
+ssh_user=""
+MYSQL_ROOT_PASSWORD=""
 
 MYSQL_ERROR_LOG="/mnt/vol2/mysql/data/mysql-error.log"
 
