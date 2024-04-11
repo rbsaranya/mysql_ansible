@@ -1,12 +1,12 @@
 [test-servers]
 172.20.79.2
 [test-servers:vars]
- ansible_user=saranya.rb
- ansible_password=KRishna@@1234
-  ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+ ansible_user=
+ ansible_password=
+ ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 [mysql-servers]
 10.91.16.224
 [mysql-servers:vars]
- ansible_user=saranya.rb
- ansible_password=welcome@2024
+ ansible_user=
+ ansible_password=
   ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
