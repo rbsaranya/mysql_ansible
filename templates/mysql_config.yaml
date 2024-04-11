@@ -1,0 +1,64 @@
+[mysqld]
+user = mysql
+innodb_buffer_pool_size = {{ innodb_buffer_pool_size }}
+innodb_log_file_size = {{ innodb_log_file_size }}
+innodb_flush_log_at_trx_commit = {{ innodb_flush_log_at_trx_commit }}
+innodb_flush_method = O_DIRECT
+#show_compatibility_56 = ON
+##thread_concurrency = 40
+innodb_read_io_threads = {{ innodb_read_io_threads }}
+innodb_write_io_threads = {{ innodb_write_io_threads }}
+thread_cache_size = 40
+log_bin = mysql-bin
+relay_log = mysql-relay
+datadir = {{ mysql_data_dir }}
+tmpdir = /mnt/vol2/mysql/tmp
+port = {{ port_no }}
+server_id = 711931
+sql_mode = NO_ENGINE_SUBSTITUTION,STRICT_TRANS_TABLES
+skip_name_resolve = 1
+max_connections = 12000
+tmp_table_size = 32M
+sort_buffer_size = 32M
+expire_logs_days = 4
+performance_schema = 0
+innodb_lock_wait_timeout = 300
+binlog_format = mixed
+#binlog_format = row
+log_slave_updates = 1
+open_files_limit = 50000
+tmpdir = {{ mysql_tmp_dir }}/tmp
+master-info-repository = table
+relay-log-info-repository = table
+# LOGGING #
+log-error = {{ mysql_data_dir }}/mysql-error.log
+log-queries-not-using-indexes = 1
+#slow-query-log = 1
+slow-query-log-file = {{ mysql_data_dir }}/mysql-slow.log
+lc-messages-dir= {{ mysql_bin_dir_pre }}/share/
+pid-file={{ mysql_data_dir }}/mysql.pid
+#slave-skip-errors = 1146
+#super-read-only
+#default_authentication_plugin = mysql_native_password
+local_infile = ON
+max_allowed_packet = 1G
+
+[mysqldump]
+quick
+max_allowed_packet = 16M
+
+[mysql]
+no-auto-rehash
+default-character-set = utf8mb4
+# Remove the next comment character if you are not familiar with SQL
+#safe-updates
+
+[myisamchk]
+key_buffer_size = 20M
+sort_buffer_size = 20M
+read_buffer = 2M
+write_buffer = 2M
+
+[mysqlhotcopy]
+interactive-timeout
+

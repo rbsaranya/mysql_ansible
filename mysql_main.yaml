@@ -1,0 +1,7 @@
+- name: Setup MySQL Database
+  hosts: "{{ target_group }}"
+  become: yes
+ 
+- name: Include MySQL installation playbook
+  import_playbook: mysql_install.yaml
+

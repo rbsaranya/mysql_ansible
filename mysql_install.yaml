@@ -1,0 +1,191 @@
+---
+- name: Install MySQL using generic binary
+  hosts: "{{ target_group }}"
+  become: yes
+  vars_files:
+    - vars/mysql_vars.yaml
+  vars_prompt:
+    - name: mysql_password
+      prompt: "Enter MySQL root password"
+      private: yes
+
+  tasks:
+    - name: Create MySQL group
+      ansible.builtin.group:
+        name: mysql
+        state: present
+
+    - name: Create MySQL user
+      ansible.builtin.user:
+        name: mysql
+        group: mysql
+        shell: /sbin/nologin  
+        system: yes
+
+    - name: Download MySQL binary
+      ansible.builtin.command:
+        cmd: "wget https://downloads.mysql.com/archives/get/p/23/file/mysql-{{ mysql_version }}-linux-glibc2.12-x86_64.tar.gz"
+      #  when: mysql_binary_stat.stat.exists == false
+        
+    - name: Move downloaded file to destination directory
+      ansible.builtin.command:
+        cmd: "mv mysql-{{ mysql_version }}-linux-glibc2.12-x86_64.tar.gz /mnt/vol1/mysql-{{ mysql_version }}-linux-glibc2.12-x86_64.tar.gz"
+
+    - name: Check if MySQL binary is already extracted
+      ansible.builtin.stat:
+        path: "/mnt/vol1/mysql-{{ mysql_version }}-linux-glibc2.12-x86_64"
+      register: mysql_binary_stat
+
+    - name: Extract MySQL binary
+      ansible.builtin.unarchive:
+        src: "/mnt/vol1/mysql-{{ mysql_version }}-linux-glibc2.12-x86_64.tar.gz"
+        dest: "/mnt/vol1"
+        remote_src: yes
+      when: mysql_binary_stat.stat.exists == false
+
+    - name: Create soft link to MySQL binary
+      become: yes
+      file:
+        src: "/mnt/vol1/mysql-{{ mysql_version }}/bin/*"  # Source path of the MySQL binary
+        dest: "/usr/local/bin/mysql"  # Destination path for the link
+        state: link
+        force: yes 
+        follow: false
+      register: symlink_result
+
+#     - name: Print the symlink result
+#       debug:
+#       var: symlink_result
+#  # Replace existing link if it exists
+
+    - name: Set permissions
+      ansible.builtin.file:
+        path: "/usr/local/bin/"
+        state: directory
+        mode: "0755"
+        recurse: yes
+  
+
+    - name: Create MySQL data directory on vol2
+      ansible.builtin.file:
+        path: "{{ mysql_data_dir }}"
+        owner: "{{ mysql_user }}"
+        group: "{{ mysql_user }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create MySQL tmp directory on vol2
+      ansible.builtin.file:
+        path: "/mnt/vol2/mysql/tmp"
+        owner: "{{ mysql_user }}"
+        group: "{{ mysql_user }}"
+        state: directory
+        mode: "0755"
+        
+
+    - name: Generate MySQL configuration
+      ansible.builtin.template:
+        src: "templates/mysql_config.yaml"
+        dest: "/etc/my.cnf"
+        owner: "{{ mysql_user }}"
+        group: "{{ mysql_user }}"
+        mode: "0644"
+    - name: Install libnuma-dev
+      apt:
+        name: libnuma-dev
+        state: present
+      ignore_errors: yes
+
+    - name: Install libncurses5
+      apt:
+        name: libncurses5
+        state: present
+      ignore_errors: yes
+  
+    - name: Add MySQL binary path to .bashrc
+      ansible.builtin.lineinfile:
+        path: ~/.bashrc
+        line: "export mysql={{ mysql_bin_dir }}"
+        insertafter: EOF
+        state: present
+      become: yes
+     
+    - name: Check if data_dir is empty
+      ansible.builtin.find:
+        paths: "{{ mysql_data_dir }}"
+        file_type: directory
+        recurse: no
+      register: dir_contents
+
+    - name: Remove files if data_dir is not empty
+      ansible.builtin.file:
+        path: "{{ mysql_data_dir }}"
+        state: absent
+      when: dir_contents.matched > 0
+
+    - name: Initialize MySQL database
+      command: "{{ mysql_bin_dir }}/mysqld --user=mysql --initialize "
+
+    # - name: Copy MySQL server script
+    #   ansible.builtin.copy:
+    #     src: "{{ mysql_bin_dir_pre }}/support-files/mysql.server"
+    #     dest: /etc/init.d/mysql.server
+    #     owner: root
+    #     group: root
+    #     mode: "0755"
+    #     remote_src: yes
+
+    - name: Generate MySQL_start configuration
+      ansible.builtin.template:
+        src: "templates/mysql_server.yaml"
+        dest: "/etc/init.d/mysql"
+        owner: "{{ mysql_user }}"
+        group: "{{ mysql_user }}"
+        mode: "0777"
+    
+    - name: Reload systemd configuration
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Start MySQL service
+      ansible.builtin.command:
+        cmd: "/etc/init.d/mysql start"
+        
+    - name: Ensure MySQL service is started
+      ansible.builtin.service:
+        name: mysql
+        state: started
+      
+    - name: Read error log and extract temporary password
+      ansible.builtin.shell:
+        cmd: "cat {{ mysql_data_dir }}/mysql-error.log | grep 'temporary password' | awk '{print $NF}'"
+      register: mysql_temp_password
+      #ignore_errors: yes  
+    
+    # - name: Prompt for MySQL root password
+    #   ansible.builtin.prompt:
+    #     prompt: "Enter MySQL root password"
+    #     echo: no
+    #   register: mysql_password
+    
+    
+    - name: Validate MySQL temporary password
+      ansible.builtin.fail:
+        msg: "Failed to retrieve temporary MySQL password from the error log"
+      when: mysql_temp_password is failed or mysql_temp_password.stdout == ""
+    
+    - name: Alter MySQL root user password
+      ansible.builtin.command:
+        cmd: "{{ mysql_bin_dir }}/mysql -u root -p'{{ mysql_temp_password.stdout }}' --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_password }}';\""
+    # - name: Alter MySQL root user password
+    #   ansible.builtin.mysql_user:
+    #     login_user: root
+    #     login_password: "{{ mysql_temp_password.stdout }}"
+    #     login_host: localhost
+    #     name: root
+    #     password: "{{ password }}"
+    #     state: present
+    #     check_implicit_admin: yes
+    #     update_password: always
+   
+  
